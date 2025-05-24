@@ -6,16 +6,6 @@ namespace Huffman
     /// </summary>
     public sealed class HuffmanEncoder
     {
-        private readonly record struct Node(
-            byte? Symbol,
-            int Frequency,
-            int? Left,
-            int? Right
-        )
-        {
-            public bool IsLeaf => Symbol.HasValue;
-        }
-
         public struct HuffmanCode
         {
             public uint Bits;      // The bits of the code (up to 32 bits)
@@ -34,6 +24,16 @@ namespace Huffman
             }
         }
 
+        private readonly record struct Node(
+            byte? Symbol,
+            int Frequency,
+            int? Left,
+            int? Right
+        )
+        {
+            public bool IsLeaf => Symbol.HasValue;
+        }
+
         // Struct to represent a Huffman code as bits and length
         private readonly byte[] input;
         private int rootIndex;
@@ -41,6 +41,7 @@ namespace Huffman
         private readonly Dictionary<byte, int> frequency = [];
         private readonly List<Node> tree = [];
         private int paddingRight;
+        private int totalBits;
         public int PaddingRight => paddingRight;
 
         public HuffmanEncoder(byte[] input)
@@ -76,15 +77,6 @@ namespace Huffman
         /// <exception cref="ArgumentException">Thrown if a symbol in the input is not in the encoding table.</exception>
         public byte[] EncodeBytes()
         {
-            // First, calculate total number of bits needed
-            int totalBits = 0;
-            foreach (var value in input)
-            {
-                if (!encodingTable.TryGetValue(value, out var code))
-                    throw new ArgumentException($"Symbol '{value}' was not found in the encoding table.", nameof(input));
-                totalBits += code.BitLength;
-            }
-
             int byteLength = (totalBits + 7) / 8;
             byte[] result = new byte[byteLength];
             int bitIndex = 0;
@@ -193,6 +185,9 @@ namespace Huffman
             if (node.IsLeaf)
             {
                 encodingTable[node.Symbol!.Value] = new HuffmanCode { Bits = bits, BitLength = bitLength };
+                totalBits += bitLength * node.Frequency;
+                if (bitLength > 32)
+                    throw new InvalidOperationException("Bit length exceeds 32 bits.");
                 return;
             }
 
