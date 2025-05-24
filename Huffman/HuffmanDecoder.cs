@@ -13,15 +13,18 @@ namespace Huffman
             public DecodeNode? One;
         }
 
-        private static DecodeNode BuildDecodingTree(Dictionary<byte, string> encodingTable)
+        // Now expects Dictionary<byte, HuffmanEncoder.HuffmanCode>
+        private static DecodeNode BuildDecodingTree(Dictionary<byte, HuffmanEncoder.HuffmanCode> encodingTable)
         {
             var root = new DecodeNode();
             foreach (var symbolEntry in encodingTable)
             {
                 var node = root;
-                foreach (char bit in symbolEntry.Value)
+                var code = symbolEntry.Value;
+                for (int i = code.BitLength - 1; i >= 0; i--)
                 {
-                    if (bit == '0')
+                    bool bitIsOne = ((code.Bits >> i) & 1) == 1;
+                    if (!bitIsOne)
                     {
                         node.Zero ??= new DecodeNode();
                         node = node.Zero;
@@ -37,20 +40,21 @@ namespace Huffman
             return root;
         }
 
-        public static byte[] Decode(byte[] byteArray, Dictionary<byte, string> encodingTable, int paddingRight)
+        public static byte[] Decode(byte[] byteArray, Dictionary<byte, HuffmanEncoder.HuffmanCode> encodingTable, int paddingRight)
         {
-            // Convert byte array to bit string
-            var bitString = string.Concat(byteArray.Select(b => Convert.ToString(b, 2).PadLeft(8, '0')));
-            if (paddingRight > 0 && bitString.Length > paddingRight)
-                bitString = bitString.Substring(0, bitString.Length - paddingRight);
-
             var root = BuildDecodingTree(encodingTable);
 
             var decodedBytes = new List<byte>();
             var node = root;
-            foreach (char bit in bitString)
+            int totalBits = byteArray.Length * 8 - paddingRight;
+
+            for (int i = 0; i < totalBits; i++)
             {
-                node = (bit == '0') ? node.Zero : node.One;
+                int bytePos = i / 8;
+                int bitPos = 7 - (i % 8);
+                bool bitIsOne = ((byteArray[bytePos] >> bitPos) & 1) == 1;
+
+                node = bitIsOne ? node.One : node.Zero;
                 if (node == null)
                     throw new InvalidOperationException("Invalid bit sequence for the provided encoding table.");
                 if (node.Symbol.HasValue)

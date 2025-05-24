@@ -21,13 +21,10 @@ class Program
         var encodeTest = Stopwatch.StartNew();
 
         // Encode bytes using Huffman encoding
-        HuffmanEncoding huffman = new(inputBytes);
+        HuffmanEncoder encoder = new(inputBytes);
 
         // Encode bytes to binary string
-        var encodedString = huffman.EncodeBytes();
-
-        // Convert to byte array
-        (byte[] encodedByteArray, int paddingRight) = Helper.ConvertBinaryStringToByteArray(encodedString.ToString());
+        var encodedByteArray = encoder.EncodeBytes();
 
         // Compression ratio calculation
         long originalBits = inputBytes.Length;
@@ -43,9 +40,9 @@ class Program
 
         Console.WriteLine($"Starting decoding...");
         // Decode the compressed data
-        Dictionary<byte, string> encodingTable = huffman.GetEncodingTable();
+        var encodingTable = encoder.GetEncodingTable();
         byte[] compressedByteDataFromFile = File.ReadAllBytes(outputEncodedPath);
-        byte[] decodedBytes = HuffmanDecoder.Decode(compressedByteDataFromFile, encodingTable, paddingRight);
+        byte[] decodedBytes = HuffmanDecoder.Decode(compressedByteDataFromFile, encodingTable, encoder.PaddingRight);
         File.WriteAllBytes(outputDecodedPath, decodedBytes);
         Console.WriteLine($"Decoding completed. Decoded data saved to {outputDecodedPath}");
         decodeTest.Stop();

@@ -4,7 +4,7 @@ namespace Huffman
     /// <summary>
     /// HuffmanEncoding is not thread-safe.
     /// </summary>
-    public sealed class HuffmanEncoding
+    public sealed class HuffmanEncoder
     {
         private readonly record struct Node(
             byte? Symbol,
@@ -16,13 +16,34 @@ namespace Huffman
             public bool IsLeaf => Symbol.HasValue;
         }
 
+        public struct HuffmanCode
+        {
+            public uint Bits;      // The bits of the code (up to 32 bits)
+            public int BitLength;  // How many bits are valid
+
+            public HuffmanCode(uint bits, int bitLength)
+            {
+                Bits = bits;
+                BitLength = bitLength;
+            }
+
+            public HuffmanCode()
+            {
+                Bits = 0;
+                BitLength = 0;
+            }
+        }
+
+        // Struct to represent a Huffman code as bits and length
         private readonly byte[] input;
         private int rootIndex;
-        private readonly Dictionary<byte, string> encodingTable = [];
+        private readonly Dictionary<byte, HuffmanCode> encodingTable = [];
         private readonly Dictionary<byte, int> frequency = [];
         private readonly List<Node> tree = [];
+        private int paddingRight;
+        public int PaddingRight => paddingRight;
 
-        public HuffmanEncoding(byte[] input)
+        public HuffmanEncoder(byte[] input)
         {
             if (input == null || input.Length == 0)
                 throw new ArgumentException("Input byte array cannot be null or empty.", nameof(input));
@@ -38,7 +59,7 @@ namespace Huffman
         /// </summary>
         /// <param name="symbol">The symbol to encode. This is slow.</param>
         /// <returns>The Huffman code as a string, or null if not found.</returns>
-        public string? GetEncodingCode(byte symbol)
+        public HuffmanCode? GetEncodingCode(byte symbol)
         {
             if (!frequency.ContainsKey(symbol))
                 throw new ArgumentException($"Symbol '{symbol}' was not found in the input.", nameof(symbol));
@@ -53,24 +74,55 @@ namespace Huffman
         /// </summary>
         /// <returns>The encoded string as a sequence of bits.</returns>
         /// <exception cref="ArgumentException">Thrown if a symbol in the input is not in the encoding table.</exception>
-        public string EncodeBytes()
+        public byte[] EncodeBytes()
         {
-            var result = new System.Text.StringBuilder();
+            // First, calculate total number of bits needed
+            int totalBits = 0;
             foreach (var value in input)
             {
                 if (!encodingTable.TryGetValue(value, out var code))
                     throw new ArgumentException($"Symbol '{value}' was not found in the encoding table.", nameof(input));
-                result.Append(code);
+                totalBits += code.BitLength;
             }
-            return result.ToString();
+
+            int byteLength = (totalBits + 7) / 8;
+            byte[] result = new byte[byteLength];
+            int bitIndex = 0;
+
+            foreach (var value in input)
+            {
+                var code = encodingTable[value];
+                for (int i = code.BitLength - 1; i >= 0; i--)
+                {
+                    if (((code.Bits >> i) & 1) == 1)
+                        result[bitIndex / 8] |= (byte)(1 << (7 - (bitIndex % 8)));
+                    bitIndex++;
+                }
+            }
+
+            paddingRight = byteLength * 8 - totalBits;
+            return result;
         }
 
         /// <summary>
         /// Returns a copy of the Huffman encoding table.
         /// </summary>
-        public Dictionary<byte, string> GetEncodingTable()
+        public Dictionary<byte, HuffmanCode> GetEncodingTable()
         {
-            return new Dictionary<byte, string>(encodingTable);
+            return new Dictionary<byte, HuffmanCode>(encodingTable);
+        }
+
+        /// <summary>
+        /// Sets the encoding table for this encoder.
+        /// </summary>
+        /// <param name="table">A dictionary mapping symbols to HuffmanCode.</param>
+        public void SetEncodingTable(Dictionary<byte, HuffmanCode> table)
+        {
+            if (table == null || table.Count == 0)
+                throw new ArgumentException("Encoding table cannot be null or empty.", nameof(table));
+            encodingTable.Clear();
+            foreach (var entry in table)
+                encodingTable[entry.Key] = entry.Value;
         }
 
         private void ComputeSymbolFrequency(byte[] input)
@@ -128,30 +180,24 @@ namespace Huffman
             var node = tree[index];
             if (node.IsLeaf)
             {
-                encodingTable[node.Symbol!.Value] = tree.Count == 1 ? "0" : "";
+                encodingTable[node.Symbol!.Value] = new HuffmanCode { Bits = 0, BitLength = 1 };
                 return;
             }
-            PreOrder(index, new System.Text.StringBuilder());
-            // PrintTree();
+            PreOrder(index, 0, 0);
         }
 
-        // PreOrder traversal to generate the encoding table
-        private void PreOrder(int index, System.Text.StringBuilder prefix)
+        // PreOrder traversal to generate the encoding table as bits
+        private void PreOrder(int index, uint bits, int bitLength)
         {
             var node = tree[index];
             if (node.IsLeaf)
             {
-                encodingTable[node.Symbol!.Value] = prefix.ToString();
+                encodingTable[node.Symbol!.Value] = new HuffmanCode { Bits = bits, BitLength = bitLength };
                 return;
             }
 
-            prefix.Append('0');
-            PreOrder(node.Left!.Value, prefix);
-            prefix.Length--;
-
-            prefix.Append('1');
-            PreOrder(node.Right!.Value, prefix);
-            prefix.Length--;
+            PreOrder(node.Left!.Value, (bits << 1) | 0u, bitLength + 1);
+            PreOrder(node.Right!.Value, (bits << 1) | 1u, bitLength + 1);
         }
 
         private void PrintTree()

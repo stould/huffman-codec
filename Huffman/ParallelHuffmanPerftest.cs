@@ -56,8 +56,8 @@ namespace Huffman
                 rand.NextBytes(input);
 
                 var sw = Stopwatch.StartNew();
-                HuffmanEncoding huffman = new(input);
-                string encodedString = huffman.EncodeBytes();
+                HuffmanEncoder huffman = new(input);
+                byte[] encodedString = huffman.EncodeBytes();
                 sw.Stop();
 
                 int originalBits = input.Length * 8;
