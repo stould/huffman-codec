@@ -51,7 +51,9 @@ namespace Huffman
             foreach (char bit in bitString)
             {
                 node = (bit == '0') ? node.Zero : node.One;
-                if (node!.Symbol.HasValue)
+                if (node == null)
+                    throw new InvalidOperationException("Invalid bit sequence for the provided encoding table.");
+                if (node.Symbol.HasValue)
                 {
                     decodedBytes.Add(node.Symbol.Value);
                     node = root;
