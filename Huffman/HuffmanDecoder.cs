@@ -59,7 +59,7 @@ namespace Huffman
                     node = root;
                 }
             }
-            return decodedBytes.ToArray();
+            return [.. decodedBytes];
         }
     }
 }
