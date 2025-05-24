@@ -9,7 +9,7 @@ namespace Huffman
         {
             var stopwatch = Stopwatch.StartNew();
 
-            var results = new ConcurrentBag<(int inputLen, int avgCompressedBits, int avgOriginalBits, double avgRatio, double avgMs)>();
+            var results = new ConcurrentBag<(int InputLength, int avgCompressedBits, double avgRatio, double avgMs)>();
             int total = 10001 - 10;
             int completed = 0;
 
@@ -18,10 +18,10 @@ namespace Huffman
                 MaxDegreeOfParallelism = Environment.ProcessorCount * 2 // Try 2x logical cores
             };
 
-            Parallel.For(10, 10001, options, inputLen =>
+            Parallel.For(10, 10001, options, InputLength =>
             {
-                var (avgOriginalBits, avgCompressedBits, avgRatio, avgMs) = RunRandomHuffmanTests(inputLen);
-                results.Add((inputLen, avgCompressedBits, avgOriginalBits, avgRatio, avgMs));
+                var (avgCompressedBits, avgRatio, avgMs) = RunRandomHuffmanTests(InputLength);
+                results.Add((InputLength, avgCompressedBits, avgRatio, avgMs));
 
                 int done = Interlocked.Increment(ref completed);
                 if (done % 100 == 0 || done == total)
@@ -31,16 +31,16 @@ namespace Huffman
             });
 
             using var writer = new StreamWriter("huffman_results.csv");
-            writer.WriteLine("InputLength,AvgOriginalBits,AvgCompressedBits,AvgCompressionRatio,AvgCompressionTimeMs");
-            foreach (var result in results.OrderBy(r => r.inputLen))
+            writer.WriteLine("InputLength,AvgCompressedBits,AvgCompressionRatio,AvgCompressionTimeMs");
+            foreach (var (InputLength, avgCompressedBits, avgRatio, avgMs) in results.OrderBy(r => r.InputLength))
             {
-                writer.WriteLine($"{result.inputLen},{result.avgOriginalBits},{result.avgCompressedBits},{result.avgRatio:F4},{result.avgMs:F4}");
+                writer.WriteLine($"{InputLength},{avgCompressedBits},{avgRatio:F4},{avgMs:F4}");
             }
 
             Console.WriteLine($"Total elapsed time: {stopwatch.Elapsed}");
         }
 
-        private static (int avgOriginalBits, int avgCompressedBits, double avgRatio, double avgMs) RunRandomHuffmanTests(int inputLen, int numTests = 500)
+        private static (int avgCompressedBits, double avgRatio, double avgMs) RunRandomHuffmanTests(int InputLength, int numTests = 300)
         {
             // Thread-local Random for thread safety and speed
             var rand = new Random(Guid.NewGuid().GetHashCode());
@@ -52,16 +52,15 @@ namespace Huffman
             for (int i = 0; i < numTests; i++)
             {
                 // Generate random byte array
-                byte[] input = new byte[inputLen];
-                rand.NextBytes(input);
+                byte[] inputBytes = Helper.GenerateRandomAsciiBytes(InputLength);
 
                 var sw = Stopwatch.StartNew();
-                HuffmanEncoder huffman = new(input);
-                byte[] encodedString = huffman.EncodeBytes();
+                HuffmanEncoder huffman = new(inputBytes);
+                byte[] encodedByteArray = huffman.EncodeBytes();
                 sw.Stop();
 
-                int originalBits = input.Length * 8;
-                int compressedBits = encodedString.Length; // Each bit is a char in the encoded string
+                int originalBits = inputBytes.Length;
+                int compressedBits = encodedByteArray.Length;
                 double compressionRatio = (double)compressedBits / originalBits;
 
                 totalOriginalBits += originalBits;
@@ -75,7 +74,7 @@ namespace Huffman
             double avgRatio = totalRatio / numTests;
             double avgMs = totalMilliseconds / numTests;
 
-            return (avgOriginalBits, avgCompressedBits, avgRatio, avgMs);
+            return (avgCompressedBits, avgRatio, avgMs);
         }
     }
 }
